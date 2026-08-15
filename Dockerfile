@@ -1,24 +1,24 @@
-FROM python:3.10.13-slim
+FROM nvidia/cuda:12.3.2-cudnn9-runtime-ubuntu22.04
 
-RUN apt-get update --fix-missing && apt-get install -y \
-    git ffmpeg \
+# Python + system deps
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 python3-pip git ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
-RUN --mount=type=cache,target=/root/.cache/pip \
-    for i in {1..3}; do \
-        pip install fastapi uvicorn python-multipart faster-whisper && break || sleep 15; \
-    done
+RUN pip3 install --no-cache-dir fastapi uvicorn python-multipart faster-whisper
 
 WORKDIR /app
 
-# Pre-download default model (turbo); override at runtime via WHISPER_MODEL env var
+# Pre-download default model so first startup is fast
 ARG WHISPER_MODEL=turbo
-RUN python -c "from faster_whisper import WhisperModel; WhisperModel('${WHISPER_MODEL}', device='cpu', compute_type='int8')"
+RUN python3 -c "from faster_whisper import WhisperModel; WhisperModel('${WHISPER_MODEL}', device='cpu', compute_type='int8')"
 
 COPY main.py .
 
-ENV WHISPER_MODEL=turbo
-ENV USE_GPU=1
+ENV WHISPER_MODEL=${WHISPER_MODEL}
+
+# Model cache lives here; mount as volume to persist across containers
+VOLUME /root/.cache/huggingface
 
 EXPOSE 4444
 

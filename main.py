@@ -13,11 +13,19 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-MODEL_NAME   = os.getenv("WHISPER_MODEL", "turbo")
-COMPUTE_TYPE = "float16" if os.getenv("USE_GPU", "1") == "1" else "int8"
-DEVICE       = "cuda"    if os.getenv("USE_GPU", "1") == "1" else "cpu"
+MODEL_NAME = os.getenv("WHISPER_MODEL", "turbo")
 
-whisper_model = WhisperModel(MODEL_NAME, device=DEVICE, compute_type=COMPUTE_TYPE)
+def _load_model(name):
+    for device, compute in [("cuda", "float16"), ("cpu", "int8")]:
+        try:
+            m = WhisperModel(name, device=device, compute_type=compute)
+            print(f"Loaded {name} on {device}/{compute}", flush=True)
+            return m
+        except Exception as e:
+            print(f"Could not load on {device}: {e}", flush=True)
+    raise RuntimeError(f"Failed to load model {name} on any device")
+
+whisper_model = _load_model(MODEL_NAME)
 
 @app.post("/v1/audio/transcriptions")
 async def transcribe_audio(
